@@ -85,7 +85,7 @@ def test_generate_random_or_rewrite_prompt(gemini_service):
 async def test_enhance_prompt_from_dto_success(gemini_service):
     dto = CreateImagenDto(
         prompt="test prompt",
-        generation_model="imagen-3.0-generate-002",
+        generation_model="gemini-3.1-flash-image",
         workspace_id=1,
     )
 
@@ -150,7 +150,7 @@ async def test_enhance_prompt_from_dto_with_brand_guidelines(gemini_service):
 
     dto = CreateImagenDto(
         prompt="test prompt",
-        generation_model="imagen-3.0-generate-002",
+        generation_model="gemini-3.1-flash-image",
         workspace_id=1,
         use_brand_guidelines=True,
     )
@@ -208,3 +208,64 @@ def test_aggregate_brand_info_multiple_items(gemini_service):
     assert res is not None
     assert "#FF0000" in res.color_palette
     assert "#00FF00" in res.color_palette
+
+
+@pytest.mark.anyio
+async def test_enhance_prompt_from_dto_video_omni_flash_portrait(
+    gemini_service,
+):
+    from src.videos.dto.create_veo_dto import CreateVeoDto
+    from src.common.base_dto import GenerationModelEnum, AspectRatioEnum
+
+    dto = CreateVeoDto(
+        prompt="A fashionable model in the city",
+        generation_model=GenerationModelEnum.GEMINI_OMNI_FLASH_PREVIEW,
+        aspect_ratio=AspectRatioEnum.RATIO_9_16,
+        resolution="1K",
+        workspace_id=1,
+    )
+
+    with patch.object(gemini_service, "generate_structured_prompt") as mock_gen:
+        mock_gen.return_value = '{"metadata": {"target_model": "gemini-omni-flash-preview"}, "visual_style": {"resolution_and_format": "720p, 9:16 portrait vertical format"}}'
+
+        res = await gemini_service.enhance_prompt_from_dto(
+            dto, PromptTargetEnum.VIDEO
+        )
+        assert res is not None
+        mock_gen.assert_called_once()
+        call_args = mock_gen.call_args[1]
+        assert (
+            "9:16 (Portrait / Vertical format)" in call_args["original_prompt"]
+        )
+        assert "gemini-omni-flash-preview" in call_args["original_prompt"]
+
+
+@pytest.mark.anyio
+async def test_enhance_prompt_from_dto_video_omni_flash_landscape(
+    gemini_service,
+):
+    from src.videos.dto.create_veo_dto import CreateVeoDto
+    from src.common.base_dto import GenerationModelEnum, AspectRatioEnum
+
+    dto = CreateVeoDto(
+        prompt="A car driving along the coast",
+        generation_model=GenerationModelEnum.GEMINI_OMNI_FLASH_PREVIEW,
+        aspect_ratio=AspectRatioEnum.RATIO_16_9,
+        resolution="1K",
+        workspace_id=1,
+    )
+
+    with patch.object(gemini_service, "generate_structured_prompt") as mock_gen:
+        mock_gen.return_value = '{"metadata": {"target_model": "gemini-omni-flash-preview"}, "visual_style": {"resolution_and_format": "720p, 16:9 widescreen"}}'
+
+        res = await gemini_service.enhance_prompt_from_dto(
+            dto, PromptTargetEnum.VIDEO
+        )
+        assert res is not None
+        mock_gen.assert_called_once()
+        call_args = mock_gen.call_args[1]
+        assert (
+            "16:9 (Landscape / Widescreen format)"
+            in call_args["original_prompt"]
+        )
+        assert "gemini-omni-flash-preview" in call_args["original_prompt"]

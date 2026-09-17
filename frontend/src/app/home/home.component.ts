@@ -97,9 +97,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   // This object holds the current state of all user selections.
   searchRequest: ImagenRequest = {
     prompt: '',
-    generationModel: 'gemini-3.1-flash-image-preview',
+    generationModel: 'gemini-3.1-flash-lite-image',
     aspectRatio: '1:1',
-    numberOfMedia: 4,
+    numberOfMedia: 1,
     style: null,
     lighting: null,
     colorAndTone: null,
@@ -109,7 +109,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     useBrandGuidelines: false,
     enhancePrompt: false,
     googleSearch: false,
-    resolution: '4K',
+    resolution: '1K',
   };
 
   modes = [
@@ -129,8 +129,11 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   generationModels: GenerationModelConfig[] = MODEL_CONFIGS.filter(
     m => m.type === 'IMAGE',
   );
-  selectedGenerationModelObject = this.generationModels[0];
-  selectedGenerationModel = this.generationModels[0].viewValue;
+  selectedGenerationModelObject =
+    this.generationModels.find(
+      m => m.value === 'gemini-3.1-flash-lite-image',
+    ) || this.generationModels[0];
+  selectedGenerationModel = this.selectedGenerationModelObject.viewValue;
   aspectRatioOptions: {
     value: string;
     viewValue: string;
@@ -406,9 +409,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       this.searchRequest.addWatermark = state.watermark;
       this.searchRequest.googleSearch = state.googleSearch;
       this.searchRequest.resolution = state.resolution as
-        | '4K'
         | '1K'
         | '2K'
+        | '4K'
         | undefined;
       this.searchRequest.style = state.style;
       this.searchRequest.colorAndTone = state.colorAndTone;
@@ -468,9 +471,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     this.searchRequest.addWatermark = state.watermark;
     this.searchRequest.googleSearch = state.googleSearch;
     this.searchRequest.resolution = state.resolution as
-      | '4K'
       | '1K'
       | '2K'
+      | '4K'
       | undefined;
     this.searchRequest.style = state.style;
     this.searchRequest.colorAndTone = state.colorAndTone;
@@ -647,6 +650,11 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  onResolutionChanged(resolution: '1K' | '2K' | '4K') {
+    this.searchRequest.resolution = resolution;
+    this.saveState();
+  }
+
   onOutputsChanged(count: number) {
     this.selectNumberOfImages(count);
   }
@@ -708,9 +716,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   selectNumberOfImages(num: number): void {
-    this.searchRequest.numberOfMedia === num
-      ? (this.searchRequest.numberOfMedia = 4)
-      : (this.searchRequest.numberOfMedia = num);
+    this.searchRequest.numberOfMedia = num;
     this.saveState();
   }
 
@@ -751,27 +757,6 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
         'Please enter a prompt to generate an image.',
       );
       return;
-    }
-
-    const hasSourceAssets = this.referenceImages.length > 0;
-    const isImagen4 = [
-      'imagen-4.0-generate-001',
-      'imagen-4.0-ultra-generate-001',
-      'imagen-4.0-fast-generate-001',
-    ].includes(this.searchRequest.generationModel);
-
-    if (hasSourceAssets && isImagen4) {
-      const imagen3Model = this.generationModels.find(
-        m => m.value === 'imagen-3.0-generate-002',
-      );
-      if (imagen3Model) {
-        this.selectModel(imagen3Model);
-        handleSuccessSnackbar(
-          this._snackBar,
-          "Imagen 4 doesn't support images as input, so we've switched to Imagen 3 for you!",
-        );
-        return;
-      }
     }
 
     const validSourceMediaItems: SourceMediaItemLink[] = [];
@@ -870,9 +855,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   resetAllFilters() {
     this.searchRequest = {
       prompt: '',
-      generationModel: 'gemini-3.1-flash-image-preview',
+      generationModel: 'gemini-3.1-flash-image',
       aspectRatio: '1:1',
-      numberOfMedia: 4,
+      numberOfMedia: 1,
       style: null,
       lighting: null,
       colorAndTone: null,
@@ -881,7 +866,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       negativePrompt: '',
       useBrandGuidelines: false,
       googleSearch: false,
-      resolution: '4K',
+      resolution: '1K',
     };
     this.negativePhrases = [];
     this.referenceImages = [];
@@ -906,7 +891,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
     if (!supportsIngredients) {
       const nanoBanana2 = this.generationModels.find(
-        m => m.value === 'gemini-3.1-flash-image-preview',
+        m => m.value === 'gemini-3.1-flash-image',
       );
       if (nanoBanana2) {
         this.selectModel(nanoBanana2);
@@ -1073,19 +1058,22 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   openCropperDialog(file: File, index?: number) {
-    const dialogRef = this.dialog.open(ImageCropperDialogComponent, {
-      data: {
-        imageFile: file,
-        assetType: AssetTypeEnum.GENERIC_IMAGE,
+    ImageCropperDialogComponent.open(this.dialog, {imageFile: file}).subscribe(
+      result => {
+        if (result && result.id) {
+          this.processInput(result, index);
+        }
       },
-      width: '600px',
-    });
+    );
+  }
 
-    dialogRef.afterClosed().subscribe((result: SourceAssetResponseDto) => {
-      if (result && result.id) {
-        this.processInput(result, index);
-      }
-    });
+  onEditPromptReferenceImage(data: {index: number; ref: ReferenceImage}) {
+    ImageCropperDialogComponent.openEditPromptReferenceImage(
+      this.dialog,
+      data,
+      this.referenceImages,
+      () => this.saveState(),
+    );
   }
 
   private processInput(

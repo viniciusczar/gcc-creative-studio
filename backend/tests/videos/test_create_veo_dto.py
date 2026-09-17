@@ -74,7 +74,7 @@ def test_validate_source_media_items_model_conflict():
             ],
             source_media_items=[],  # Force validator to run
         )
-    assert "Reference images are only supported by" in str(exc_info.value)
+    assert "Reference images/media are only supported by" in str(exc_info.value)
 
 
 def test_validate_source_media_items_conflicting_inputs():
@@ -83,7 +83,7 @@ def test_validate_source_media_items_conflicting_inputs():
             prompt="Test",
             workspace_id=1,
             generation_model=GenerationModelEnum.VEO_3_1_PREVIEW,
-            start_image_asset_id=1,
+            start_image_asset_id={"id": 1, "type": "source_asset"},
             reference_images=[
                 ReferenceImageDto(
                     asset_id=2,
@@ -92,7 +92,7 @@ def test_validate_source_media_items_conflicting_inputs():
             ],
             source_media_items=[],  # Force validator to run
         )
-    assert "Reference images cannot be used at the same time" in str(
+    assert "Reference media cannot be used at the same time" in str(
         exc_info.value
     )
 
@@ -106,3 +106,125 @@ def test_validate_video_generation_model_error():
         "Invalid generation model for video" in str(exc_info.value)
         or "enum" in str(exc_info.value).lower()
     )
+
+
+def test_create_veo_dto_with_omni_references():
+    dto = CreateVeoDto(
+        prompt="Test Omni",
+        workspace_id=1,
+        generation_model=GenerationModelEnum.GEMINI_OMNI,
+        reference_video={"id": 10, "type": "media_item"},
+        reference_audio={"id": 20, "type": "media_item"},
+        parent_media_item_id=15,
+    )
+    assert dto.generation_model == GenerationModelEnum.GEMINI_OMNI
+    assert dto.reference_video.id == 10
+    assert dto.reference_video.type == "media_item"
+    assert dto.reference_audio.id == 20
+    assert dto.reference_audio.type == "media_item"
+    assert dto.parent_media_item_id == 15
+
+
+def test_validate_resolution_by_model():
+    # Gemini Omni - 1K is OK
+    CreateVeoDto(
+        prompt="Test",
+        workspace_id=1,
+        generation_model=GenerationModelEnum.GEMINI_OMNI,
+        resolution="1K",
+    )
+
+    # Gemini Omni - 2K is error
+    with pytest.raises(ValidationError) as exc_info:
+        CreateVeoDto(
+            prompt="Test",
+            workspace_id=1,
+            generation_model=GenerationModelEnum.GEMINI_OMNI,
+            resolution="2K",
+        )
+    assert "does not support resolution '2K'" in str(exc_info.value)
+
+    # Veo 3.1 Lite - 2K is OK
+    CreateVeoDto(
+        prompt="Test",
+        workspace_id=1,
+        generation_model=GenerationModelEnum.VEO_3_1_LITE_GENERATE_001,
+        resolution="2K",
+    )
+
+    # Veo 3.1 Lite - 4K is error
+    with pytest.raises(ValidationError) as exc_info:
+        CreateVeoDto(
+            prompt="Test",
+            workspace_id=1,
+            generation_model=GenerationModelEnum.VEO_3_1_LITE_GENERATE_001,
+            resolution="4K",
+        )
+    assert "does not support resolution '4K'" in str(exc_info.value)
+
+    # Veo 3.1 Generate 001 - 4K is OK
+    CreateVeoDto(
+        prompt="Test",
+        workspace_id=1,
+        generation_model=GenerationModelEnum.VEO_3_1_GENERATE_001,
+        resolution="4K",
+    )
+
+
+def test_validate_duration_seconds():
+    # 10s is valid for Gemini Omni Flash Preview
+    dto_flash = CreateVeoDto(
+        prompt="Test",
+        workspace_id=1,
+        generation_model=GenerationModelEnum.GEMINI_OMNI_FLASH_PREVIEW,
+        duration_seconds=10,
+    )
+    assert dto_flash.duration_seconds == 10
+
+    # 10s is valid for Gemini Omni 1.1 Flash Preview
+    dto_flash_1_1 = CreateVeoDto(
+        prompt="Test",
+        workspace_id=1,
+        generation_model=GenerationModelEnum.GEMINI_OMNI_1_1_FLASH_PREVIEW,
+        duration_seconds=10,
+    )
+    assert dto_flash_1_1.duration_seconds == 10
+
+    # 10s is valid for Gemini Omni
+    dto_omni = CreateVeoDto(
+        prompt="Test",
+        workspace_id=1,
+        generation_model=GenerationModelEnum.GEMINI_OMNI,
+        duration_seconds=10,
+    )
+    assert dto_omni.duration_seconds == 10
+
+    # 8s is valid for Veo models
+    dto_veo = CreateVeoDto(
+        prompt="Test",
+        workspace_id=1,
+        generation_model=GenerationModelEnum.VEO_3_1_GENERATE_001,
+        duration_seconds=8,
+    )
+    assert dto_veo.duration_seconds == 8
+
+    # 10s is invalid for Veo models (max 8s)
+    with pytest.raises(ValidationError) as exc_info:
+        CreateVeoDto(
+            prompt="Test",
+            workspace_id=1,
+            generation_model=GenerationModelEnum.VEO_3_1_GENERATE_001,
+            duration_seconds=10,
+        )
+    assert "does not support duration '10s'" in str(exc_info.value)
+    assert "Maximum supported duration: 8s" in str(exc_info.value)
+
+    # 11s exceeds max limit
+    with pytest.raises(ValidationError) as exc_info:
+        CreateVeoDto(
+            prompt="Test",
+            workspace_id=1,
+            generation_model=GenerationModelEnum.GEMINI_OMNI_FLASH_PREVIEW,
+            duration_seconds=11,
+        )
+    assert "less than or equal to 10" in str(exc_info.value)

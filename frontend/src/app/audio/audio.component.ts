@@ -23,7 +23,6 @@ import {
 import {MatSnackBar} from '@angular/material/snack-bar';
 import {MatDialog} from '@angular/material/dialog';
 import {OnInit} from '@angular/core';
-import {MatSelectChange} from '@angular/material/select';
 import {finalize} from 'rxjs';
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 import {WorkspaceStateService} from '../services/workspace/workspace-state.service';
@@ -74,7 +73,7 @@ export class AudioComponent implements OnInit {
   prompt = '';
   negativePrompt = '';
   seed: number | undefined;
-  sampleCount = 4;
+  sampleCount = 1;
 
   // TTS & Chirp Specific Inputs
   selectedLanguage: LanguageEnum = LanguageEnum.EN_US;
@@ -223,14 +222,14 @@ export class AudioComponent implements OnInit {
     return this.sanitizer.bypassSecurityTrustResourceUrl(url);
   }
 
-  onVoiceSelectionChange(event: MatSelectChange) {
-    const value = event.value as string;
+  onVoiceSelectionChange(value: string) {
     if (value === 'add-new-voice') {
       this.openAddVoiceDialog();
       this.selectedVoice = '';
     } else {
       this.selectedVoice = value;
     }
+    this.saveState();
   }
 
   openAddVoiceDialog() {
